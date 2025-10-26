@@ -34,12 +34,12 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(cookieParser());
 
 // CORS configuration - use FRONTEND_URL from .env
-const allowedOrigins = process.env.NODE_ENV === 'production'
-  ? [process.env.FRONTEND_URL]
-  : [process.env.FRONTEND_URL || 'http://localhost:5173', 'http://localhost:8081'];
+// const allowedOrigins = process.env.NODE_ENV === 'production'
+//   ? [process.env.FRONTEND_URL]
+//   : [process.env.FRONTEND_URL || 'http://localhost:5173', 'http://localhost:8081'];
 
 app.use(cors({ 
-  origin: allowedOrigins,
+  origin: process.env.FRONTEND_URL,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
