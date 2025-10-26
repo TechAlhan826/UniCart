@@ -1,0 +1,12 @@
+# Environment Variables
+*.env
+.env
+.env.local
+.env.production
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Documentation (optional - remove if you want to track .md files)
+*.md

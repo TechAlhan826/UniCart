@@ -1,0 +1,44 @@
+{
+  "name": "unicart-backend",
+  "version": "1.0.0",
+  "description": "Campus marketplace for VITians to buy/sell goods, addressing scattered transactions with central trusted platform.",
+  "type": "module",
+  "main": "server.ts",
+  "scripts": {
+    "start": "nodemon server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TechAlhan826/UniCart.git"
+  },
+  "author": "MOHAMMED ALHAN N",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/TechAlhan826/UniCart/issues"
+  },
+  "homepage": "https://github.com/TechAlhan826/UniCart#readme",
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^4.21.2",
+    "express-session": "^1.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.18.0",
+    "nodemailer": "^7.0.10",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.9",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^24.3.1",
+    "@types/passport": "^1.0.17",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.9.2"
+  }
+}
