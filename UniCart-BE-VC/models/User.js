@@ -6,7 +6,7 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String }, // optional for google
   googleId: { type: String }, // for oauth
-  role: { type: String, enum: ['user', 'seller', 'admin'], default: 'user' },
+  role: { type: String },
   profile: {
     phone: { type: String },
     collegeRoll: { type: String },
