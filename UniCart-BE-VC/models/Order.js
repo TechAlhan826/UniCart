@@ -33,4 +33,10 @@ const orderSchema = new mongoose.Schema({
   discount: { type: Number, default: 0 },
 }, { timestamps: true });
 
+// Add indexes for better query performance
+orderSchema.index({ userId: 1, createdAt: -1 }); // For fetching user orders
+orderSchema.index({ status: 1 }); // For admin filtering
+orderSchema.index({ razorpayOrderId: 1 }); // For payment verification
+orderSchema.index({ 'cartItems.sellerId': 1 }); // For seller orders
+
 export default mongoose.model('Order', orderSchema);

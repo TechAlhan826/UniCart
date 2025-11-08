@@ -131,13 +131,12 @@ export const createOrder = async (req, res) => {
       
       await order.save();
       
+      // Clear cart in background (non-blocking)
       if (cartId) {
-        // clear cart if cart-based order
-        const cart = await Cart.findById(cartId);
-        if (cart) {
-          cart.items = [];
-          await cart.save();
-        }
+        setImmediate(() => {
+          Cart.findByIdAndUpdate(cartId, { items: [] })
+            .catch(err => console.error('Cart clear failed:', err));
+        });
       }
       
       return res.json({
@@ -155,55 +154,71 @@ export const createOrder = async (req, res) => {
     // cod - directly set to processing
     await order.save();
     
-    // Update product stock for COD orders
-    for (const item of cartItems) {
-      await Product.findByIdAndUpdate(
-        item.productId,
-        { $inc: { stock: -item.quantity } }
-      );
-    }
+    // INSTANT RESPONSE - Move ALL operations to background
+    const orderId = order._id;
+    const orderStatus = order.status;
+    const orderTotal = total;
     
-    if (cartId) {
-      // clear cart if cart-based order
-      const cart = await Cart.findById(cartId);
-      if (cart) {
-        cart.items = [];
-        await cart.save();
-      }
-    }
-    
-    // Send order confirmation email to buyer
-    try {
-      const buyer = await User.findById(req.user._id);
-      if (buyer) {
-        await sendOrderConfirmationEmail(buyer, order);
-      }
-    } catch (emailErr) {
-      console.error('Failed to send order confirmation email:', emailErr);
-    }
-    
-    // Send order notification to sellers
-    try {
-      const sellerIds = [...new Set(cartItems.map(item => item.sellerId.toString()))];
-      for (const sellerId of sellerIds) {
-        const seller = await User.findById(sellerId);
-        if (seller) {
-          const sellerItems = cartItems.filter(item => item.sellerId.toString() === sellerId);
-          await sendSellerOrderNotification(seller, order, sellerItems);
-        }
-      }
-    } catch (emailErr) {
-      console.error('Failed to send seller notification email:', emailErr);
-    }
-    
+    // Respond immediately
     res.json({ 
       success: true, 
       data: { 
-        orderId: order._id, 
-        amount: total, 
-        status: order.status 
+        orderId, 
+        amount: orderTotal, 
+        status: orderStatus 
       }, 
       message: 'Order created successfully' 
+    });
+    
+    // Process everything in background (non-blocking)
+    setImmediate(async () => {
+      try {
+        // Update product stock in parallel
+        const stockUpdatePromises = cartItems.map(item => 
+          Product.findByIdAndUpdate(
+            item.productId,
+            { $inc: { stock: -item.quantity } }
+          ).catch(err => console.error(`Stock update failed for ${item.productId}:`, err))
+        );
+        
+        // Clear cart if cart-based order
+        let cartClearPromise = Promise.resolve();
+        if (cartId) {
+          cartClearPromise = Cart.findByIdAndUpdate(cartId, { items: [] })
+            .catch(err => console.error('Cart clear failed:', err));
+        }
+        
+        // Execute stock updates and cart clear in parallel
+        await Promise.all([...stockUpdatePromises, cartClearPromise]);
+        
+        // Send emails in parallel
+        const emailPromises = [];
+        
+        // Buyer confirmation email
+        emailPromises.push(
+          User.findById(req.user._id).then(buyer => {
+            if (buyer) return sendOrderConfirmationEmail(buyer, order);
+          }).catch(err => console.error('Buyer email failed:', err))
+        );
+        
+        // Seller notification emails
+        const sellerIds = [...new Set(cartItems.map(item => item.sellerId.toString()))];
+        sellerIds.forEach(sellerId => {
+          emailPromises.push(
+            User.findById(sellerId).then(seller => {
+              if (seller) {
+                const sellerItems = cartItems.filter(item => item.sellerId.toString() === sellerId);
+                return sendSellerOrderNotification(seller, order, sellerItems);
+              }
+            }).catch(err => console.error(`Seller email failed for ${sellerId}:`, err))
+          );
+        });
+        
+        await Promise.allSettled(emailPromises);
+        console.log(`✅ Background processing completed for order ${orderId}`);
+      } catch (err) {
+        console.error(`❌ Background processing failed for order ${orderId}:`, err);
+      }
     });
   } catch (err) {
     console.error(err);
@@ -448,15 +463,17 @@ export const updateOrderStatus = async (req, res) => {
     if (trackingNumber) order.trackingNumber = trackingNumber;
     await order.save();
     
-    // Send status update email to buyer
-    try {
-      const buyer = await User.findById(order.userId);
-      if (buyer) {
-        await sendOrderStatusEmail(buyer, order);
+    // Send status update email to buyer asynchronously
+    setImmediate(async () => {
+      try {
+        const buyer = await User.findById(order.userId);
+        if (buyer) {
+          await sendOrderStatusEmail(buyer, order);
+        }
+      } catch (emailErr) {
+        console.error('Failed to send order status email:', emailErr);
       }
-    } catch (emailErr) {
-      console.error('Failed to send order status email:', emailErr);
-    }
+    });
     
     res.json({
       success: true,
@@ -497,20 +514,30 @@ export const cancelOrder = async (req, res) => {
       });
     }
     
-    // Restore product stock
-    for (const item of order.cartItems) {
-      await Product.findByIdAndUpdate(
-        item.productId,
-        { $inc: { stock: item.quantity } }
-      );
-    }
-    
-    // Update order status
+    // Update order status first
     order.status = 'cancelled';
     order.paymentStatus = order.paymentStatus === 'paid' ? 'refunded' : 'failed';
     await order.save();
     
+    // INSTANT RESPONSE
     res.json({ success: true, msg: 'Order cancelled successfully' });
+    
+    // Restore product stock in background (non-blocking)
+    setImmediate(async () => {
+      try {
+        const stockRestorePromises = order.cartItems.map(item =>
+          Product.findByIdAndUpdate(
+            item.productId,
+            { $inc: { stock: item.quantity } }
+          ).catch(err => console.error(`Stock restore failed for ${item.productId}:`, err))
+        );
+        
+        await Promise.allSettled(stockRestorePromises);
+        console.log(`✅ Stock restored for cancelled order ${order._id}`);
+      } catch (err) {
+        console.error(`❌ Stock restore failed for order ${order._id}:`, err);
+      }
+    });
   } catch (err) {
     console.error('Cancel order error:', err);
     res.status(500).json({ success: false, msg: 'Failed to cancel order' });

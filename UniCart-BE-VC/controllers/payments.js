@@ -42,25 +42,35 @@ export const confirmPayment = async (req, res) => {
     order.paymentStatus = 'paid';
     await order.save();
     
-    // Update product stock (if not already done)
-    for (const item of order.cartItems) {
-      await Product.findByIdAndUpdate(
-        item.productId,
-        { $inc: { stock: -item.quantity } }
-      );
-    }
+    // INSTANT RESPONSE
+    const responseData = {
+      id: order._id,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      razorpayPaymentId: order.razorpayPaymentId
+    };
     
     res.json({
       success: true,
-      data: {
-        order: {
-          id: order._id,
-          status: order.status,
-          paymentStatus: order.paymentStatus,
-          razorpayPaymentId: order.razorpayPaymentId
-        }
-      },
+      data: { order: responseData },
       msg: 'Payment verified successfully'
+    });
+    
+    // Update product stock in background (non-blocking)
+    setImmediate(async () => {
+      try {
+        const stockUpdatePromises = order.cartItems.map(item =>
+          Product.findByIdAndUpdate(
+            item.productId,
+            { $inc: { stock: -item.quantity } }
+          ).catch(err => console.error(`Stock update failed for ${item.productId}:`, err))
+        );
+        
+        await Promise.allSettled(stockUpdatePromises);
+        console.log(`✅ Stock updated for order ${order._id}`);
+      } catch (err) {
+        console.error(`❌ Stock update failed for order ${order._id}:`, err);
+      }
     });
   } catch (err) {
     console.error('Confirm payment error:', err);
