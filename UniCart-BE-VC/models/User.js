@@ -18,7 +18,7 @@ const userSchema = new mongoose.Schema({
     avatar: { type: String },
   },
   agreeToTerms: { type: Boolean, default: false },
-  isVerified: { type: Boolean, default: false },
+  isVerified: { type: Boolean, default: true },
   verificationToken: { type: String },
   verificationTokenExpires: { type: Date },
   verificationEmailSentAt: { type: Date },
